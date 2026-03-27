@@ -10,38 +10,52 @@ permissions:
   actions: read
 
 jobs:
-  Build:
+  Initialization:
     runs-on: [ windows-latest ]
+    outputs:
+      projects: ${{ steps.determineProjects.outputs.ProjectsJson }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # This sets up the AL compiler environment without the telemetry crash
       - name: Initialize Workflow
         uses: microsoft/AL-Go-Actions/WorkflowInitialize@v8.3
         with:
           shell: powershell
 
-      # We manually find all folders containing an app.json and build them
-      - name: Build All Projects
-        shell: powershell
-        run: |
-          $projects = Get-ChildItem -Path . -Filter "app.json" -Recurse
-          foreach ($project in $projects) {
-              $projectDir = $project.DirectoryName
-              Write-Host "Building project in: $projectDir"
-              
-              # Call the compiler directly for this folder
-              uses: microsoft/AL-Go-Actions/Compile-App@v8.3
-              with:
-                shell: powershell
-                project: $projectDir
-          }
+      - name: Determine Projects
+        id: determineProjects
+        uses: microsoft/AL-Go-Actions/DetermineProjectsToBuild@v8.3
+        with:
+          shell: powershell
+          maxBuildDepth: 2
 
-      - name: Upload All App Packages
+  Build:
+    needs: [ Initialization ]
+    if: ${{ needs.Initialization.outputs.projects != '[]' && needs.Initialization.outputs.projects != '' }}
+    strategy:
+      matrix:
+        project: ${{ fromJson(needs.Initialization.outputs.projects) }}
+      fail-fast: false
+    runs-on: [ windows-latest ]
+    name: Build ${{ matrix.project.projectName }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize Workflow
+        uses: microsoft/AL-Go-Actions/WorkflowInitialize@v8.3
+        with:
+          shell: powershell
+
+      - name: Compile App
+        uses: microsoft/AL-Go-Actions/Compile-App@v8.3
+        with:
+          shell: powershell
+          project: ${{ matrix.project.project }}
+
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BC-Deployable-Packages
-          path: |
-            **/*.app
-          if-no-files-found: error
+          name: ${{ matrix.project.projectName }}_Package
+          path: ${{ matrix.project.project }}/*.app
