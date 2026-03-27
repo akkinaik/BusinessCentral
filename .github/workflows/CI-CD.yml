@@ -11,27 +11,21 @@ permissions:
 
 jobs:
   Build:
-    runs-on: [ windows-latest ]
+    runs-on: [ windows-latest ] # CRITICAL: Must be Windows
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          lfs: true
 
-      # 1. Initialize the AL-Go environment (Required for BC v27.5)
-      - name: Initialize Workflow
-        id: init
+      - name: Initialize
         uses: microsoft/AL-Go-Actions/WorkflowInitialize@v8.3
         with:
           shell: powershell
 
-      # 2. Build the Business Central App from your subfolder
-      - name: Build Business Central App
+      - name: Build
         uses: microsoft/AL-Go-Actions/Compile-App@v8.3
         with:
           shell: powershell
           project: './BCTrainingApp'
-          buildMode: 'Default'
 
       # 3. Upload the .app package so you can download it
       - name: Upload Artifacts
