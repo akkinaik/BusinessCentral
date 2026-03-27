@@ -21,8 +21,9 @@ jobs:
         with:
           shell: powershell
           token: ${{ secrets.GITHUB_TOKEN }}
-          project: BCTrainingApp        # ← singular, plain string, your original was right
+          project: BCTrainingApp
           buildMode: Default
+          parentTelemetryScopeJson: '{}'    # ← this is what was missing
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
