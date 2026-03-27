@@ -16,15 +16,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # This is the "Master" action that solves the path errors
       - name: Run AL-Go Build
         uses: microsoft/AL-Go-Actions/RunPipeline@v8.3
         with:
           shell: powershell
-          project: BCTrainingApp
+          token: ${{ secrets.GITHUB_TOKEN }}
+          projects: '["BCTrainingApp"]'        # JSON array string, not plain text
           buildMode: Default
+          parentTelemetryScopeJson: '{}'        # Required in v8.3, even if empty
 
-      # Upload the .app file created by the pipeline
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
