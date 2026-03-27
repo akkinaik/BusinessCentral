@@ -15,6 +15,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # This step is REQUIRED to set up the environment variables for AL-Go
+      - name: Initialize the workflow
+        uses: microsoft/AL-Go-Actions/WorkflowInitialize@v8.3
+        with:
+          shell: powershell
+
       - name: Build Business Central App
         uses: microsoft/AL-Go-Actions/Compile-App@v8.3
         with:
