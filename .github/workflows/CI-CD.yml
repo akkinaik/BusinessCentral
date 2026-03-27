@@ -1,4 +1,4 @@
-name: 'App CI'
+name: 'App CI - Auto Discover'
 
 on:
   workflow_dispatch:
@@ -10,23 +10,53 @@ permissions:
   actions: read
 
 jobs:
-  Build:
+  Discovery:
     runs-on: [ windows-latest ]
+    outputs:
+      project_list: ${{ steps.find_projects.outputs.projects }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # This is the "Master" action that solves the path errors
-      - name: Run AL-Go Build
-        uses: microsoft/AL-Go-Actions/RunPipeline@v8.3
+      - name: Find Project Folders
+        id: find_projects
+        shell: powershell
+        run: |
+          # Finds all folders containing an app.json and formats them for the matrix
+          $projects = Get-ChildItem -Path . -Filter "app.json" -Recurse | ForEach-Object { 
+            @{ "path" = "./$($_.Directory.Name)"; "name" = $_.Directory.Name } 
+          } | ConvertTo-Json -Compress
+          
+          # Sets the output for the next job
+          echo "projects=$projects" >> $env:GITHUB_OUTPUT
+
+  Build:
+    needs: [ Discovery ]
+    if: ${{ needs.Discovery.outputs.project_list != '[]' }}
+    strategy:
+      matrix:
+        # This converts the text list from Discovery into actual parallel jobs
+        project: ${{ fromJson(needs.Discovery.outputs.project_list) }}
+      fail-fast: false
+    runs-on: [ windows-latest ]
+    name: Build ${{ matrix.project.name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize Workflow
+        uses: microsoft/AL-Go-Actions/WorkflowInitialize@v8.3
         with:
           shell: powershell
-          project: './BCTrainingApp'
-          buildMode: 'Default'
 
-      # Upload the .app file created by the pipeline
-      - name: Upload Artifacts
+      - name: Compile ${{ matrix.project.name }}
+        uses: microsoft/AL-Go-Actions/Compile-App/Compile-App.Action@v8.3
+        with:
+          shell: powershell
+          project: ${{ matrix.project.path }}
+
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BCTrainingApp_Package
-          path: ./**/*.app
+          name: ${{ matrix.project.name }}_Package
+          path: ${{ matrix.project.path }}/*.app
