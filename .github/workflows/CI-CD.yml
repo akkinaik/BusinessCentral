@@ -1,4 +1,4 @@
-name: 'App CI - Create Package'
+name: 'App CI - Multi Project'
 
 on:
   workflow_dispatch:
@@ -10,40 +10,52 @@ permissions:
   actions: read
 
 jobs:
-  Build:
+  Initialization:
     runs-on: [ windows-latest ]
+    outputs:
+      projects: ${{ steps.determineProjects.outputs.ProjectsJson }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 1. Initialize the AL-Go environment (Required)
       - name: Initialize Workflow
         uses: microsoft/AL-Go-Actions/WorkflowInitialize@v8.3
         with:
           shell: powershell
 
-      # 2. Determine which projects to build based on your app.json
       - name: Determine Projects
-        uses: microsoft/AL-Go-Actions/DetermineProjectsToBuild@v8.3
         id: determineProjects
+        uses: microsoft/AL-Go-Actions/DetermineProjectsToBuild@v8.3
+        with:
+          shell: powershell
+          maxBuildDepth: 2 # Searches 2 folders deep for app.json files
+
+  Build:
+    needs: [ Initialization ]
+    if: ${{ needs.Initialization.outputs.projects != '[]' }}
+    strategy:
+      matrix:
+        project: ${{ fromJson(needs.Initialization.outputs.projects) }}
+      fail-fast: false
+    runs-on: [ windows-latest ]
+    name: Build ${{ matrix.project.projectName }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize Workflow
+        uses: microsoft/AL-Go-Actions/WorkflowInitialize@v8.3
         with:
           shell: powershell
 
-      # 3. Compile the App and Create the .app package
-      - name: Build and Package
+      - name: Compile ${{ matrix.project.projectName }}
         uses: microsoft/AL-Go-Actions/Compile-App@v8.3
         with:
           shell: powershell
-          project: '.'
-          # This ensures it creates a 'Runtime' package if needed
-          buildMode: 'Default' 
+          project: ${{ matrix.project.project }}
 
-      # 4. Upload the .app file so you can download it from GitHub
-      - name: Upload Artifacts
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BusinessCentral_App_Package
-          path: |
-            ./*.app
-            ./bin/*.app
-          if-no-files-found: error
+          name: ${{ matrix.project.projectName }}_Package
+          path: ${{ matrix.project.project }}/*.app
