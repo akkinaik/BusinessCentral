@@ -3,14 +3,10 @@ name: 'App CI'
 on:
   workflow_dispatch:
   push:
-    # Now monitors all three of your main branches
     branches: [ 'main', 'Dev', 'Test' ]
-  pull_request:
-    branches: [ 'main', 'Test' ] # Checks code before it merges into Test or Main
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
   Build:
@@ -19,9 +15,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run AL-Go Build
-        uses: microsoft/AL-Go-Actions/RunPipeline@v8.3
+      - name: Build Business Central App
+        uses: microsoft/AL-Go-Actions/Compile-App@v8.3
         with:
           shell: powershell
           project: '.'
-          buildMode: 'Default'
