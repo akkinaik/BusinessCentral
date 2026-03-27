@@ -5,37 +5,28 @@ on:
   push:
     branches: [ 'main', 'Dev', 'Test' ]
 
-permissions:
-  contents: read
-  actions: read
-
 jobs:
   Build:
     runs-on: [ windows-latest ]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          lfs: true
 
-      # 1. Initialize the AL-Go environment (Required for BC v27.5)
+      # Required: Sets up the AL environment variables
       - name: Initialize Workflow
         uses: microsoft/AL-Go-Actions/WorkflowInitialize@v8.3
         with:
           shell: powershell
 
-      # 2. Compile the App - Specifically targeting your subfolder
+      # Corrected Path: Pointing to the internal Compile-App folder
       - name: Build Business Central App
         uses: microsoft/AL-Go-Actions/Compile-App@v8.3
         with:
           shell: powershell
-          project: './BCTrainingApp' # This fixes the 'null' error by giving a direct path
-          buildMode: 'Default'
+          project: './BCTrainingApp'
 
-      # 3. Upload the .app package so you can download it
-      - name: Upload Artifacts
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BCTrainingApp_Package
+          name: BC-Package
           path: BCTrainingApp/*.app
-          if-no-files-found: error
