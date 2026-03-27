@@ -1,4 +1,4 @@
-name: 'App CI - Auto Discover'
+name: 'App CI'
 
 on:
   workflow_dispatch:
@@ -10,53 +10,28 @@ permissions:
   actions: read
 
 jobs:
-  Discovery:
-    runs-on: [ windows-latest ]
-    outputs:
-      project_list: ${{ steps.find_projects.outputs.projects }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Find Project Folders
-        id: find_projects
-        shell: powershell
-        run: |
-          # Finds all folders containing an app.json and formats them for the matrix
-          $projects = Get-ChildItem -Path . -Filter "app.json" -Recurse | ForEach-Object { 
-            @{ "path" = "./$($_.Directory.Name)"; "name" = $_.Directory.Name } 
-          } | ConvertTo-Json -Compress
-          
-          # Sets the output for the next job
-          echo "projects=$projects" >> $env:GITHUB_OUTPUT
-
   Build:
-    needs: [ Discovery ]
-    if: ${{ needs.Discovery.outputs.project_list != '[]' }}
-    strategy:
-      matrix:
-        # This converts the text list from Discovery into actual parallel jobs
-        project: ${{ fromJson(needs.Discovery.outputs.project_list) }}
-      fail-fast: false
     runs-on: [ windows-latest ]
-    name: Build ${{ matrix.project.name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Initialize Workflow
+      # 1. This sets up the compiler & environment variables
+      - name: Initialize AL-Go
         uses: microsoft/AL-Go-Actions/WorkflowInitialize@v8.3
         with:
           shell: powershell
 
-      - name: Compile ${{ matrix.project.name }}
+      # 2. Direct call to the compiler sub-action (This avoids the line 78 crash)
+      - name: Compile BCTrainingApp
         uses: microsoft/AL-Go-Actions/Compile-App/Compile-App.Action@v8.3
         with:
           shell: powershell
-          project: ${{ matrix.project.path }}
+          project: './BCTrainingApp'
 
+      # 3. Upload the deployable .app package
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.project.name }}_Package
-          path: ${{ matrix.project.path }}/*.app
+          name: BCTrainingApp_Package
+          path: BCTrainingApp/*.app
