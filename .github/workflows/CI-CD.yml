@@ -16,22 +16,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 1. This sets up the compiler & environment variables
-      - name: Initialize AL-Go
-        uses: microsoft/AL-Go-Actions/WorkflowInitialize@v8.3
-        with:
-          shell: powershell
-
-      # 2. Direct call to the compiler sub-action (This avoids the line 78 crash)
-      - name: Compile BCTrainingApp
-        uses: microsoft/AL-Go-Actions/Compile-App/Compile-App.Action@v8.3
+      # This is the "Master" action that solves the path errors
+      - name: Run AL-Go Build
+        uses: microsoft/AL-Go-Actions/RunPipeline@v8.3
         with:
           shell: powershell
           project: './BCTrainingApp'
+          buildMode: 'Default'
 
-      # 3. Upload the deployable .app package
-      - name: Upload Artifact
+      # Upload the .app file created by the pipeline
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: BCTrainingApp_Package
-          path: BCTrainingApp/*.app
+          path: ./**/*.app
