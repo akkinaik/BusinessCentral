@@ -11,26 +11,22 @@ permissions:
 
 jobs:
   Build:
-    runs-on: [ windows-latest ] # CRITICAL: Must be Windows
+    runs-on: [ windows-latest ]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Initialize
-        uses: microsoft/AL-Go-Actions/WorkflowInitialize@v8.3
-        with:
-          shell: powershell
-
-      - name: Build
-        uses: microsoft/AL-Go-Actions/Compile-App@v8.3
+      # This is the "Master" action that solves the path errors
+      - name: Run AL-Go Build
+        uses: microsoft/AL-Go-Actions/RunPipeline@v8.3
         with:
           shell: powershell
           project: './BCTrainingApp'
+          buildMode: 'Default'
 
-      # 3. Upload the .app package so you can download it
+      # Upload the .app file created by the pipeline
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: BCTrainingApp_Package
-          path: BCTrainingApp/*.app
-          if-no-files-found: error
+          path: ./**/*.app
