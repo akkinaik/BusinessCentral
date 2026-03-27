@@ -7,19 +7,4 @@
     "Default"
   ]
 }
-```
 
-Remove `"projects"` — that field doesn't belong in the repo-level settings file. Projects are **auto-discovered** by scanning for folders containing `app.json`, which yours has.
-
----
-
-## What to Check Next
-
-If it still fails after these corrections, the remaining candidates are:
-
-**1. Is the `BCTrainingApp` folder at the repo root?**
-```
-your-repo/               ← GitHub workspace root
-├── .github/
-└── BCTrainingApp/       ← must be HERE, not nested deeper
-    └── app.json
