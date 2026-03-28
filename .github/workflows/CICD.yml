@@ -1,0 +1,81 @@
+name: CI/CD
+
+on:
+  workflow_dispatch:
+  push:
+    paths-ignore:
+      - '**.md'
+      - '.github/workflows/*.yaml'
+      - '.github/workflows/*.yml'
+    branches:
+      - Test
+      - Dev
+  pull_request:
+    branches:
+      - Test
+      - Dev
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: powershell
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  Initialization:
+    runs-on: [ windows-latest ]
+    outputs:
+      telemetryScopeJson: ${{ steps.init.outputs.telemetryScopeJson }}
+      settings:           ${{ steps.ReadSettings.outputs.SettingsJson }}
+      projects:           ${{ steps.ReadSettings.outputs.ProjectsJson }}
+      projectCount:       ${{ steps.ReadSettings.outputs.ProjectCount }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize the workflow
+        id: init
+        uses: microsoft/AL-Go-Actions/WorkflowInitialize@v8.3
+        with:
+          shell: powershell
+
+      - name: Read settings
+        id: ReadSettings
+        uses: microsoft/AL-Go-Actions/ReadSettings@v8.3
+        with:
+          shell: powershell
+
+  Build:
+    needs: [ Initialization ]
+    runs-on: [ windows-latest ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        uses: microsoft/AL-Go-Actions/RunPipeline@v8.3
+        with:
+          shell:        powershell
+          settingsJson: ${{ needs.Initialization.outputs.settings }}
+          secretsJson:  '{}'
+
+      - name: Publish artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name:              BCTrainingApp-${{ github.run_number }}
+          path:              '.buildartifacts/**/*.app'
+          if-no-files-found: error
+
+      - name: Finalize the workflow
+        if: always()
+        uses: microsoft/AL-Go-Actions/WorkflowPostProcess@v8.3
+        with:
+          shell:               powershell
+          telemetryScopeJson:  ${{ needs.Initialization.outputs.telemetryScopeJson }}
