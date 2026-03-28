@@ -5,6 +5,9 @@
   "repoVersion": "1.0",
   "buildModes": [
     "Default"
+  ],
+  "artifact": "////current",
+  "appFolders": [
+    "BCTrainingApp"
   ]
 }
-
