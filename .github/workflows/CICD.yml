@@ -35,8 +35,6 @@ jobs:
     outputs:
       telemetryScopeJson: ${{ steps.init.outputs.telemetryScopeJson }}
       settings:           ${{ steps.ReadSettings.outputs.SettingsJson }}
-      projects:           ${{ steps.ReadSettings.outputs.ProjectsJson }}
-      projectCount:       ${{ steps.ReadSettings.outputs.ProjectCount }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,18 +49,20 @@ jobs:
         id: ReadSettings
         uses: microsoft/AL-Go-Actions/ReadSettings@v8.3
         with:
-          shell:         powershell
-          getProjects:   'Y'        # ← tells AL-Go to scan for app folders
+          shell: powershell
+
+      # Debug — see what AL-Go detected
+      - name: 🔍 Debug Outputs
+        shell: powershell
+        run: |
+          Write-Host "Settings : ${{ steps.ReadSettings.outputs.SettingsJson }}"
+          Write-Host "Projects : ${{ steps.ReadSettings.outputs.ProjectsJson }}"
+          Write-Host "Count    : ${{ steps.ReadSettings.outputs.ProjectCount }}"
 
   Build:
     needs: [ Initialization ]
-    if: ${{ needs.Initialization.outputs.projectCount != 0 }}
-    strategy:
-      matrix:
-        project: ${{ fromJson(needs.Initialization.outputs.projects) }}
-      fail-fast: false
     runs-on: [ windows-latest ]
-    name: Build ${{ matrix.project }}
+    # ✅ No if-condition, no matrix — always runs
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -71,21 +71,5 @@ jobs:
         uses: microsoft/AL-Go-Actions/RunPipeline@v8.3
         with:
           shell:        powershell
-          project:      ${{ matrix.project }}      # ← this was missing!
+          project:      'BCTrainingApp'    # ✅ hardcoded — no matrix needed
           settingsJson: ${{ needs.Initialization.outputs.settings }}
-          secretsJson:  '{}'
-
-      - name: Publish artifacts
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name:              BCTrainingApp-${{ github.run_number }}
-          path:              '${{ matrix.project }}/.buildartifacts/**/*.app'
-          if-no-files-found: error
-
-      - name: Finalize the workflow
-        if: always()
-        uses: microsoft/AL-Go-Actions/WorkflowPostProcess@v8.3
-        with:
-          shell:              powershell
-          telemetryScopeJson: ${{ needs.Initialization.outputs.telemetryScopeJson }}
