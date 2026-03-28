@@ -1,9 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/microsoft/AL-Go-Actions/v8.3/.Modules/settings.schema.json",
   "type": "PTE",
-  "country": "us",
-  "templateUrl": "https://github.com/microsoft/AL-Go-PTE@v8.3",
-  "repoVersion": "1.0",
-  "buildModes": [ "Default" ],
-  "artifact": "////current",
-  "appFolders": [ "BCTrainingApp" ]
+  "templateUrl": "https://github.com/microsoft/AL-Go-PTE@main"
 }
