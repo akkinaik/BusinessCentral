@@ -8,12 +8,14 @@ on:
       - '.github/workflows/*.yaml'
       - '.github/workflows/*.yml'
     branches:
-      - Test
+      - main
       - Dev
+      - Test
   pull_request:
     branches:
-      - Test
+      - main
       - Dev
+      - Test
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -49,11 +51,18 @@ jobs:
         id: ReadSettings
         uses: microsoft/AL-Go-Actions/ReadSettings@v8.3
         with:
-          shell: powershell
+          shell:         powershell
+          getProjects:   'Y'        # ← tells AL-Go to scan for app folders
 
   Build:
     needs: [ Initialization ]
+    if: ${{ needs.Initialization.outputs.projectCount != 0 }}
+    strategy:
+      matrix:
+        project: ${{ fromJson(needs.Initialization.outputs.projects) }}
+      fail-fast: false
     runs-on: [ windows-latest ]
+    name: Build ${{ matrix.project }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,6 +71,7 @@ jobs:
         uses: microsoft/AL-Go-Actions/RunPipeline@v8.3
         with:
           shell:        powershell
+          project:      ${{ matrix.project }}      # ← this was missing!
           settingsJson: ${{ needs.Initialization.outputs.settings }}
           secretsJson:  '{}'
 
@@ -70,13 +80,12 @@ jobs:
         if: success()
         with:
           name:              BCTrainingApp-${{ github.run_number }}
-          path:              '.buildartifacts/**/*.app'
+          path:              '${{ matrix.project }}/.buildartifacts/**/*.app'
           if-no-files-found: error
 
       - name: Finalize the workflow
         if: always()
         uses: microsoft/AL-Go-Actions/WorkflowPostProcess@v8.3
         with:
-          shell:               powershell
-          telemetryScopeJson:  ${{ needs.Initialization.outputs.telemetryScopeJson }}
-          
+          shell:              powershell
+          telemetryScopeJson: ${{ needs.Initialization.outputs.telemetryScopeJson }}
