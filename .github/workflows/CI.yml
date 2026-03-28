@@ -1,79 +1,41 @@
-# .github/workflows/CI.yml
-# Business Central CI — Compile, Build & Package BCTrainingApp
-# Triggers on push/PR to Dev and main branches
-
 name: BC App CI — Build & Package
 
 on:
   push:
-    branches:
-      - Test
-      - Dev
+    branches: [main, Dev]
   pull_request:
-    branches:
-      - Test
-      - Dev
-
-  # Allow manual trigger from GitHub Actions tab
+    branches: [main, Dev]
   workflow_dispatch:
 
 jobs:
   build:
     name: 🔨 Compile & Package BCTrainingApp
-    runs-on: windows-latest       # BC compiler requires Windows
+    runs-on: windows-latest
     timeout-minutes: 60
 
     steps:
 
-    # ── 1. Checkout ────────────────────────────────────────────
     - name: 📥 Checkout Repository
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
-    # ── 2. Read app.json metadata ───────────────────────────────
     - name: 📖 Read app.json Metadata
-      id: appinfo
       shell: pwsh
       run: |
         $appJson    = Get-Content 'BCTrainingApp/app.json' | ConvertFrom-Json
-        $appName    = $appJson.name
-        $appVersion = $appJson.version
-        $publisher  = $appJson.publisher
+        echo "APP_NAME=$($appJson.name)"       >> $env:GITHUB_ENV
+        echo "APP_VERSION=$($appJson.version)" >> $env:GITHUB_ENV
+        echo "PUBLISHER=$($appJson.publisher)" >> $env:GITHUB_ENV
+        Write-Host "App: $($appJson.name) v$($appJson.version)"
 
-        Write-Host "App Name  : $appName"
-        Write-Host "Version   : $appVersion"
-        Write-Host "Publisher : $publisher"
-
-        # Export to GitHub env for later steps
-        echo "APP_NAME=$appName"       >> $env:GITHUB_ENV
-        echo "APP_VERSION=$appVersion" >> $env:GITHUB_ENV
-        echo "PUBLISHER=$publisher"    >> $env:GITHUB_ENV
-
-    # ── 3. Install BcContainerHelper ────────────────────────────
     - name: 📦 Install BcContainerHelper
       shell: pwsh
       run: |
         Install-Module BcContainerHelper -Force -AllowClobber -Scope CurrentUser
         Write-Host "✅ BcContainerHelper installed"
 
-    # ── 4. Get BC Artifact URL ──────────────────────────────────
-    - name: 🌐 Resolve BC Artifact URL
-      id: bcartifact
-      shell: pwsh
-      run: |
-        Import-Module BcContainerHelper
-
-        $artifactUrl = Get-BCArtifactUrl `
-          -type    Sandbox `
-          -country W1 `
-          -select  Current
-
-        Write-Host "BC Artifact URL: $artifactUrl"
-        echo "BC_ARTIFACT_URL=$artifactUrl" >> $env:GITHUB_ENV
-
-    # ── 5. Compile AL App ───────────────────────────────────────
-    - name: 🔨 Compile AL App
+    - name: 🔨 Download BC Artifacts & Compile AL App
       shell: pwsh
       run: |
         Import-Module BcContainerHelper
@@ -81,32 +43,50 @@ jobs:
         $outputFolder = Join-Path $env:GITHUB_WORKSPACE 'output'
         New-Item -ItemType Directory -Force -Path $outputFolder | Out-Null
 
-        Write-Host "Compiling BCTrainingApp..."
+        # Get + download BC artifact (includes alc.exe compiler)
+        $artifactUrl = Get-BCArtifactUrl -type Sandbox -country W1 -select Current
+        Write-Host "Artifact: $artifactUrl"
 
-        $appFile = Compile-AppInBcContainer `
-          -artifactUrl      $env:BC_ARTIFACT_URL `
-          -appProjectFolder (Join-Path $env:GITHUB_WORKSPACE 'BCTrainingApp') `
-          -appOutputFolder  $outputFolder `
-          -AzureDevOps      # works for GitHub Actions logs too
+        $folders = Download-Artifacts -artifactUrl $artifactUrl -includePlatform
+        $platformFolder = $folders[1]
 
-        Write-Host "✅ Compiled: $appFile"
+        # Find alc.exe
+        $alc = Get-ChildItem -Path $platformFolder -Filter 'alc.exe' -Recurse | Select-Object -First 1
+        if (-not $alc) { throw "❌ alc.exe not found!" }
+        Write-Host "✅ Compiler: $($alc.FullName)"
+
+        # Set up .alpackages with BC symbols
+        $appProjectFolder = Join-Path $env:GITHUB_WORKSPACE 'BCTrainingApp'
+        $alcPackagesFolder = Join-Path $appProjectFolder '.alpackages'
+        New-Item -ItemType Directory -Force -Path $alcPackagesFolder | Out-Null
+
+        $symbolsSource = Join-Path $folders[0] 'Applications'
+        if (Test-Path $symbolsSource) {
+          Get-ChildItem -Path $symbolsSource -Filter '*.app' -Recurse |
+            ForEach-Object { Copy-Item $_.FullName -Destination $alcPackagesFolder -Force }
+          Write-Host "✅ Symbols copied"
+        }
+
+        # Compile
+        & $alc.FullName @(
+          "/project:$appProjectFolder"
+          "/packagecachepath:$alcPackagesFolder"
+          "/out:$outputFolder"
+        )
+
+        if ($LASTEXITCODE -ne 0) { throw "❌ Compilation failed (exit $LASTEXITCODE)" }
+        Write-Host "✅ Compilation done!"
         echo "OUTPUT_FOLDER=$outputFolder" >> $env:GITHUB_ENV
 
-    # ── 6. Verify .app was created ──────────────────────────────
     - name: 🔍 Verify .app File
       shell: pwsh
       run: |
         $apps = Get-ChildItem $env:OUTPUT_FOLDER -Filter '*.app'
-        if ($apps.Count -eq 0) {
-          Write-Error "❌ No .app file found!"
-          exit 1
-        }
-        Write-Host "✅ $($apps.Count) .app file(s) found:"
+        if ($apps.Count -eq 0) { Write-Error "❌ No .app file found!"; exit 1 }
         $apps | ForEach-Object {
-          Write-Host "   → $($_.Name)  ($([math]::Round($_.Length/1KB,1)) KB)"
+          Write-Host "✅ $($_.Name)  ($([math]::Round($_.Length/1KB,1)) KB)"
         }
 
-    # ── 7. Upload .app as GitHub Actions Artifact ───────────────
     - name: 📤 Upload .app Artifact
       uses: actions/upload-artifact@v4
       with:
@@ -114,23 +94,3 @@ jobs:
         path: output/*.app
         retention-days: 30
         if-no-files-found: error
-
-  # ════════════════════════════════════════
-  # JOB 2 — SUMMARY
-  # ════════════════════════════════════════
-  summary:
-    name: 📋 Build Summary
-    runs-on: ubuntu-latest
-    needs: build
-    if: success()
-
-    steps:
-    - name: ✅ Print Summary
-      run: |
-        echo "════════════════════════════════════"
-        echo "  ✅ BUILD SUCCESSFUL"
-        echo "  App     : BCTrainingApp"
-        echo "  Version : ${{ env.APP_VERSION }}"
-        echo "  Branch  : ${{ github.ref_name }}"
-        echo "  Commit  : ${{ github.sha }}"
-        echo "════════════════════════════════════"
