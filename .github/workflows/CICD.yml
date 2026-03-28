@@ -5,8 +5,8 @@ on:
   push:
     paths-ignore:
       - '**.md'
-      - '.github/workflows/*.yaml'
-      - '.github/workflows/*.yml'
+#      - '.github/workflows/*.yaml'
+ #     - '.github/workflows/*.yml'
     branches:
       - main
       - Dev
