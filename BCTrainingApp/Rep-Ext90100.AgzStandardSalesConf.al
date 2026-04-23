@@ -21,7 +21,7 @@ reportextension 90100 "Agz Standard Sales Conf." extends "Standard Sales - Order
         layout(ELBStandardSalesInvoiceWord)
         {
             Type = RDLC;
-            Caption = 'EB Sales Order Confirmation';
+            Caption = 'EB Sales Order Confiamtion';
             LayoutFile = '.\SalesOrderConfForSubscriptionBilling_EB.rdl';
         }
     }
